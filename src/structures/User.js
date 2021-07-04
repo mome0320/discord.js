@@ -3,7 +3,7 @@
 const Base = require('./Base');
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const { Error } = require('../errors');
-const Snowflake = require('../util/Snowflake');
+const SnowflakeUtil = require('../util/SnowflakeUtil');
 const UserFlags = require('../util/UserFlags');
 
 let Structures;
@@ -16,7 +16,7 @@ let Structures;
 class User extends Base {
   /**
    * @param {Client} client The instantiating client
-   * @param {Object} data The data for the user
+   * @param {APIUser} data The data for the user
    */
   constructor(client, data) {
     super(client);
@@ -27,76 +27,11 @@ class User extends Base {
      */
     this.id = data.id;
 
-    this._patch(data);
-  }
+    this.bot = null;
 
-  _patch(data) {
-    if ('username' in data) {
-      /**
-       * The username of the user
-       * @type {?string}
-       * @name User#username
-       */
-      this.username = data.username;
-    } else if (typeof this.username !== 'string') {
-      this.username = null;
-    }
+    this.system = null;
 
-    /**
-     * Whether or not the user is a bot
-     * @type {boolean}
-     * @name User#bot
-     */
-    this.bot = Boolean(data.bot);
-
-    if ('discriminator' in data) {
-      /**
-       * A discriminator based on username for the user
-       * @type {?string}
-       * @name User#discriminator
-       */
-      this.discriminator = data.discriminator;
-    } else if (typeof this.discriminator !== 'string') {
-      this.discriminator = null;
-    }
-
-    if ('avatar' in data) {
-      /**
-       * The ID of the user's avatar
-       * @type {?string}
-       * @name User#avatar
-       */
-      this.avatar = data.avatar;
-    } else if (typeof this.avatar !== 'string') {
-      this.avatar = null;
-    }
-
-    if ('system' in data) {
-      /**
-       * Whether the user is an Official Discord System user (part of the urgent message system)
-       * @type {?boolean}
-       * @name User#system
-       */
-      this.system = Boolean(data.system);
-    }
-
-    if ('locale' in data) {
-      /**
-       * The locale of the user's client (ISO 639-1)
-       * @type {?string}
-       * @name User#locale
-       */
-      this.locale = data.locale;
-    }
-
-    if ('public_flags' in data) {
-      /**
-       * The flags for this user
-       * @type {?UserFlags}
-       * @name User#flags
-       */
-      this.flags = new UserFlags(data.public_flags);
-    }
+    this.flags = null;
 
     /**
      * The ID of the last message sent by the user, if one was sent
@@ -109,6 +44,68 @@ class User extends Base {
      * @type {?Snowflake}
      */
     this.lastMessageChannelID = null;
+
+    this._patch(data);
+  }
+
+  _patch(data) {
+    if ('username' in data) {
+      /**
+       * The username of the user
+       * @type {?string}
+       */
+      this.username = data.username;
+    } else if (typeof this.username !== 'string') {
+      this.username = null;
+    }
+
+    if ('bot' in data) {
+      /**
+       * Whether or not the user is a bot
+       * @type {?boolean}
+       */
+      this.bot = Boolean(data.bot);
+    } else if (!this.partial && typeof this.bot !== 'boolean') {
+      this.bot = false;
+    }
+
+    if ('discriminator' in data) {
+      /**
+       * A discriminator based on username for the user
+       * @type {?string}
+       */
+      this.discriminator = data.discriminator;
+    } else if (typeof this.discriminator !== 'string') {
+      this.discriminator = null;
+    }
+
+    if ('avatar' in data) {
+      /**
+       * The ID of the user's avatar
+       * @type {?string}
+       */
+      this.avatar = data.avatar;
+    } else if (typeof this.avatar !== 'string') {
+      this.avatar = null;
+    }
+
+    if ('system' in data) {
+      /**
+       * Whether the user is an Official Discord System user (part of the urgent message system)
+       * @type {?boolean}
+       */
+      this.system = Boolean(data.system);
+    } else if (!this.partial && typeof this.system !== 'boolean') {
+      this.system = false;
+    }
+
+    if ('public_flags' in data) {
+      /**
+       * The flags for this user
+       * @type {?UserFlags}
+       */
+      this.flags = new UserFlags(data.public_flags);
+    }
   }
 
   /**
@@ -126,7 +123,7 @@ class User extends Base {
    * @readonly
    */
   get createdTimestamp() {
-    return Snowflake.deconstruct(this.id).timestamp;
+    return SnowflakeUtil.deconstruct(this.id).timestamp;
   }
 
   /**
@@ -144,8 +141,7 @@ class User extends Base {
    * @readonly
    */
   get lastMessage() {
-    const channel = this.client.channels.cache.get(this.lastMessageChannelID);
-    return (channel && channel.messages.cache.get(this.lastMessageID)) || null;
+    return this.client.channels.resolve(this.lastMessageChannelID)?.messages.resolve(this.lastMessageID) ?? null;
   }
 
   /**
@@ -188,7 +184,7 @@ class User extends Base {
    * @returns {string}
    */
   displayAvatarURL(options) {
-    return this.avatarURL(options) || this.defaultAvatarURL;
+    return this.avatarURL(options) ?? this.defaultAvatarURL;
   }
 
   /**
@@ -206,8 +202,7 @@ class User extends Base {
    * @returns {boolean}
    */
   typingIn(channel) {
-    channel = this.client.channels.resolve(channel);
-    return channel._typing.has(this.id);
+    return this.client.channels.resolve(channel)._typing.has(this.id);
   }
 
   /**
@@ -226,8 +221,7 @@ class User extends Base {
    * @returns {number}
    */
   typingDurationIn(channel) {
-    channel = this.client.channels.resolve(channel);
-    return channel._typing.has(this.id) ? channel._typing.get(this.id).elapsedTime : -1;
+    return this.client.channels.resolve(channel)._typing.get(this.id)?.elapsedTime ?? -1;
   }
 
   /**
@@ -236,7 +230,7 @@ class User extends Base {
    * @readonly
    */
   get dmChannel() {
-    return this.client.channels.cache.find(c => c.type === 'dm' && c.recipient.id === this.id) || null;
+    return this.client.channels.cache.find(c => c.type === 'dm' && c.recipient.id === this.id) ?? null;
   }
 
   /**
@@ -255,7 +249,7 @@ class User extends Base {
         recipient_id: this.id,
       },
     });
-    return this.client.actions.ChannelCreate.handle(data).channel;
+    return this.client.channels.add(data);
   }
 
   /**
@@ -265,8 +259,9 @@ class User extends Base {
   async deleteDM() {
     const { dmChannel } = this;
     if (!dmChannel) throw new Error('USER_NO_DMCHANNEL');
-    const data = await this.client.api.channels(dmChannel.id).delete();
-    return this.client.actions.ChannelDelete.handle(data).channel;
+    await this.client.api.channels(dmChannel.id).delete();
+    this.client.channels.remove(dmChannel.id);
+    return dmChannel;
   }
 
   /**
@@ -288,7 +283,7 @@ class User extends Base {
 
   /**
    * Fetches this user's flags.
-   * @param {boolean} [force=false] Whether to skip the cache check and request the AP
+   * @param {boolean} [force=false] Whether to skip the cache check and request the API
    * @returns {Promise<UserFlags>}
    */
   async fetchFlags(force = false) {
@@ -300,7 +295,7 @@ class User extends Base {
 
   /**
    * Fetches this user.
-   * @param {boolean} [force=false] Whether to skip the cache check and request the AP
+   * @param {boolean} [force=false] Whether to skip the cache check and request the API
    * @returns {Promise<User>}
    */
   fetch(force = false) {
@@ -342,3 +337,8 @@ class User extends Base {
 TextBasedChannel.applyToClass(User);
 
 module.exports = User;
+
+/**
+ * @external APIUser
+ * @see {@link https://discord.com/developers/docs/resources/user#user-object}
+ */

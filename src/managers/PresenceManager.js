@@ -1,15 +1,15 @@
 'use strict';
 
-const BaseManager = require('./BaseManager');
+const CachedManager = require('./CachedManager');
 const { Presence } = require('../structures/Presence');
 
 /**
  * Manages API methods for Presences and holds their cache.
- * @extends {BaseManager}
+ * @extends {CachedManager}
  */
-class PresenceManager extends BaseManager {
+class PresenceManager extends CachedManager {
   constructor(client, iterable) {
-    super(client, iterable, Presence);
+    super(client, Presence, iterable);
   }
 
   /**
@@ -40,7 +40,7 @@ class PresenceManager extends BaseManager {
     const presenceResolvable = super.resolve(presence);
     if (presenceResolvable) return presenceResolvable;
     const UserResolvable = this.client.users.resolveID(presence);
-    return super.resolve(UserResolvable) || null;
+    return super.resolve(UserResolvable);
   }
 
   /**

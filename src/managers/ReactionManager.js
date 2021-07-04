@@ -1,15 +1,15 @@
 'use strict';
 
-const BaseManager = require('./BaseManager');
+const CachedManager = require('./CachedManager');
 const MessageReaction = require('../structures/MessageReaction');
 
 /**
  * Manages API methods for reactions and holds their cache.
- * @extends {BaseManager}
+ * @extends {CachedManager}
  */
-class ReactionManager extends BaseManager {
+class ReactionManager extends CachedManager {
   constructor(message, iterable) {
-    super(message.client, iterable, MessageReaction);
+    super(message.client, MessageReaction, iterable);
 
     /**
      * The message that this manager belongs to
@@ -19,7 +19,7 @@ class ReactionManager extends BaseManager {
   }
 
   add(data, cache) {
-    return super.add(data, cache, { id: data.emoji.id || data.emoji.name, extras: [this.message] });
+    return super.add(data, cache, { id: data.emoji.id ?? data.emoji.name, extras: [this.message] });
   }
 
   /**

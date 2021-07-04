@@ -11,7 +11,7 @@ const Util = require('../util/Util');
 class MessageReaction {
   /**
    * @param {Client} client The instantiating client
-   * @param {Object} data The data for the message reaction
+   * @param {APIReaction} data The data for the message reaction
    * @param {Message} message The message the reaction refers to
    */
   constructor(client, data, message) {
@@ -22,6 +22,7 @@ class MessageReaction {
      * @readonly
      */
     Object.defineProperty(this, 'client', { value: client });
+
     /**
      * The message that this reaction refers to
      * @type {Message}
@@ -38,7 +39,7 @@ class MessageReaction {
      * A manager of the users that have given this reaction
      * @type {ReactionUserManager}
      */
-    this.users = new ReactionUserManager(client, undefined, this);
+    this.users = new ReactionUserManager(this);
 
     this._emoji = new ReactionEmoji(this, data.emoji);
 
@@ -46,13 +47,14 @@ class MessageReaction {
   }
 
   _patch(data) {
-    /**
-     * The number of people that have given the same reaction
-     * @type {?number}
-     * @name MessageReaction#count
-     */
     // eslint-disable-next-line eqeqeq
-    if (this.count == undefined) this.count = data.count;
+    if (this.count == undefined) {
+      /**
+       * The number of people that have given the same reaction
+       * @type {?number}
+       */
+      this.count = data.count;
+    }
   }
 
   /**
@@ -104,9 +106,9 @@ class MessageReaction {
    */
   async fetch() {
     const message = await this.message.fetch();
-    const existing = message.reactions.cache.get(this.emoji.id || this.emoji.name);
+    const existing = message.reactions.cache.get(this.emoji.id ?? this.emoji.name);
     // The reaction won't get set when it has been completely removed
-    this._patch(existing || { count: 0 });
+    this._patch(existing ?? { count: 0 });
     return this;
   }
 
@@ -127,9 +129,14 @@ class MessageReaction {
     if (!this.me || user.id !== this.message.client.user.id) this.count--;
     if (user.id === this.message.client.user.id) this.me = false;
     if (this.count <= 0 && this.users.cache.size === 0) {
-      this.message.reactions.cache.delete(this.emoji.id || this.emoji.name);
+      this.message.reactions.cache.delete(this.emoji.id ?? this.emoji.name);
     }
   }
 }
 
 module.exports = MessageReaction;
+
+/**
+ * @external APIReaction
+ * @see {@link https://discord.com/developers/docs/resources/channel#reaction-object}
+ */
